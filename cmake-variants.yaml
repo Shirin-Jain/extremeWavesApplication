@@ -1,0 +1,15 @@
+LbuildType:
+  default: Develop
+  choices:
+    Develop:
+      short: Develop
+      long: Emit debug information but also optimize
+      buildType: Develop
+board:
+  default: NUCLEO_H723ZG
+  choices:
+    NUCLEO_H723ZG:
+      short: NUCLEO_H723ZG
+      settings:
+        MBED_TARGET: nucleo-hz23zg
+        UPLOAD_METHOD: STM32CUBE

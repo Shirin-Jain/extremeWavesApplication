@@ -1,0 +1,13 @@
+{
+    "target_overrides": {
+        "*": {
+            "platform.stdio-baud-rate": 115200,
+            "platform.stdio-buffered-serial": 1,
+            "drivers.uart-serial-rxbuf-size": 1024,
+            "drivers.uart-serial-txbuf-size": 1024,
+            "rtos.main-thread-stack-size": 65536,
+            "target.printf_lib": "std",
+            "target.application-profile": "full"
+        }
+    }
+}
