@@ -1,13 +1,26 @@
 #include <cstdint>
-#define RPC_SOH                             0x4E4C444D
-#define RESPONCE_SOH                        0x4E4C444D //change
-#define MAX_ARGS_SIZE            0xFFFF  // need to change to be reasonable
+#include <functional>
 
-//128 by 128 or 254 by 254
+
+#define SOH                             0x4E4C444D
+
+#define SEARCHING_FOR_SOH 0
+#define HEADER 1
+#define HEADER_CHECKSUM 2
+#define PAYLOAD 3
+
+#define WRITE_MATRIX 1
+#define READ_MATRIX 2
+#define DELETE_MATRIX 4
+#define WRITE_CELL 8
+#define READ_CELL 16
 
 
 uint16_t fletcher16(const uint8_t* data, uint64_t length);
 
+
+
+//matrix max dimenion is 127 * 127
 
 
 struct Matrix {
@@ -16,132 +29,102 @@ struct Matrix {
     uint16_t m;
     uint16_t n;
     float* data;
+
+    Matrix(uint16_t _matrixID, uint16_t _m, uint16_t _n, float * _data){
+        matrixID = _matrixID;
+        m = _m;
+        n = _n;
+        data = _data;
+
+    };
+
+    float readCell (uint16_t _m, uint16_t _n) const{
+
+        float value;
+
+        if(_m < m && _n < n){
+            value = data[ _m *(n-1) + _n];
+        }
+
+        return value;
+
+    };
+
+
+    void writeCell(uint16_t _m, uint16_t _n, float value){
+
+        if(_m < m && _n < n){
+            data[ _m *(n-1) + _n] = value;  // double chek this
+        }
+        
+        return;
+
+    };
+
+
+    bool operator==(const Matrix& other) const {
+        return matrixID == other.matrixID;
+    }
     
-
-};
-/*
- procID = 0, 1, 2, 3, 4   (could be 1 hot coded)
-1  , 2, 4, 8, 16 
-
- 1 = write Matrix
-    args - matrix struct + size (?)
- 2 = read Matrix
-    args - matrix ID
- 4 = write to specific cell
-    args - m, n, matrix ID, float data
- 8 = read speicfic cell
-    arg - m, n, matrixID
- 16 = delete matrix
-    args - matrix ID
-
-
-*/
-
-struct RPCPacket {
-    public:
-        union {
-            struct {
-                uint32_t startOfHeader = RPC_SOH;
-                uint32_t procArgsLength;
-                uint16_t procArgsChecksum;
-                uint8_t procId;
-                
-            };
-
-            struct {
-                uint8_t header[11];
-            };
-        };
-
-        uint16_t headerChecksum;
-        uint8_t args[MAX_ARGS_SIZE]; // byte array of args  // ask madeline will this not send over the whole array each time? or can i use my sending command to cut off after (that makes sense)
-        //matrix struct
-
-        RPCPacket(){
-            procArgsLength = 0;
-            procArgsChecksum = 0;
-            procId = 0;
-
-            headerChecksum = 0;
-        };
-
-        RPCPacket(uint8_t* data); // create a packet from formated pointer
-
-        RPCPacket(uint8_t id, uint32_t argsLength, uint8_t* args); // create a packet from formatted args
-
-        RPCPacket(int8_t id, uint16_t matrix_id,  uint16_t m, uint16_t n, bool memory, Matrix * matrix); // create packet from base args
-
-        bool isValid();    // checks procId and checksums
 };
 
 
-struct ResponsePacket {
-    public:
-        union {
-            struct {
-                uint32_t startOfHeader = RPC_SOH;
-                uint16_t responseId;
-                uint16_t payloadSize;
-                uint16_t payloadChecksum;
-                                
-            };
+struct MatrixHash {
+    std::size_t operator()(const Matrix& m) const {
+        return std::hash<int>{}(m.matrixID);  
+    }
+};
 
-            struct {
-                uint8_t header[10];
-            };
-
+struct Packet{
+    
+    union {
+        struct {
+            uint32_t startOfHeader = SOH;
+            uint16_t payloadLength;
+            uint16_t payloadChecksum;
+            uint16_t id;      // either procedur or procedure checksum  
         };
 
-        uint16_t headerChecksum;
-        uint8_t *payload;
-
-        ResponsePacket(){
-            payloadSize = 0;
-            payloadChecksum = 0;
-            headerChecksum = 0;
-            responseId = 0;
-            payload = nullptr;
+        struct {
+            uint8_t header[10];
         };
+    };
 
-        ResponsePacket(uint8_t* data);
+    uint16_t headerChecksum;
+    uint8_t* payload; // byte array of args 
 
-        ResponsePacket(uint16_t _responseId,  uint16_t _payloadSize,  uint8_t* _payload);
+    Packet(){
+        payloadLength = 0;
+        payloadChecksum = 0;
+        id = 0;
+        
+        headerChecksum = 0;
+    };
 
-        uint16_t serialize(uint8_t* output);
+    Packet(uint8_t* _data){
+        memcpy(header, _data, sizeof(header));
+        payload = _data +11;
+    }; // create a packet from formated pointer
 
-        bool isValid();
+    Packet(uint16_t _id, uint32_t _payloadLength, uint8_t* _payload); // create a packet from formatted args
+    bool isValid();
+
+
 };
 
 
-#define SEARCHING_FOR_SOH 0
-#define HEADER 1
-#define HEADER_CHECKSUM 2
-#define PAYLOAD 3
-
-
-
-struct RPCParser {
-    RPCParser();
+struct Parser {
+    Parser();
     void init();
     bool processByte(uint8_t);
 
     int state;  
     uint32_t soh;
-    RPCPacket inputPacket;
-    RPCPacket completedPacket;
+    Packet inputPacket;
+    Packet completedPacket;
     size_t position;
 };
 
 
-struct ResponseParser {
-    ResponseParser();
-    void init();
-    bool processByte(uint8_t);
 
-    int state;  
-    uint32_t soh;
-    ResponsePacket inputPacket;
-    ResponsePacket completedPacket;
-    size_t position;
-};
 
