@@ -49,6 +49,9 @@ project(ExtremeWaves)
 include(mbed-os/tools/cmake/mbed_project_setup.cmake)
 
 add_subdirectory(mbed-os)
+add_subdirectory(src/libs/matrixtransfer)
 
-add_subdirectory(src)
+add_subdirectory(src/main/helloword)
+add_subdirectory(src/main/matrix)
+add_subdirectory(src/main/eightchipspi)
 add_compile_options(-Wno-psabi)
