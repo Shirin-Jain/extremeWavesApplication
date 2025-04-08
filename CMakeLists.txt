@@ -52,6 +52,8 @@ add_subdirectory(mbed-os)
 add_subdirectory(src/libs/matrixtransfer)
 
 add_subdirectory(src/main/helloword)
-add_subdirectory(src/main/matrix)
-add_subdirectory(src/main/eightchipspi)
+add_subdirectory(src/main/matrixserver)
+add_subdirectory(src/main/matrixclient)
+
+
 add_compile_options(-Wno-psabi)

@@ -1,142 +1,189 @@
-#include "matrixTransfer.h"
-#include "server.h"
 #include "mbed.h"
-#include <unordered_set>
+#include "server.h"
+#include "matrixTransfer.h"
 
-
-Receive::Receive()
+Server::Server()
 {
+    init();
+}
+
+void Server::init()
+{
+    serial = BufferedSerial(CONSOLE_TX, CONSOLE_RX, 115200); // look this up
     parser = Parser();
-    serial = Serial(); //find pins
 }
 
-void Receive::init()
+void Server::waitForCommands()
 {
-    parser.init();
-}
 
-// BufferedSerial xtend = BufferedSerial(SENS_PIN_XTEND_TX, SENS_PIN_XTEND_RX, XTEND_BAUD_RATE);
-/*
- procID (could be 1 hot coded)
-1  , 2, 4, 8, 16
-
-0 =  nothing
-
- 1 = write Matrix
-    args - matrix struct + size (?)
- 2 = read Matrix
-    args - matrix ID
-4 = delete matrix
-    args - matrix ID
- 8 = write to specific cell
-    args -matrix ID, m, n,  float data - in data*
- 16 = read speicfic cell
-    arg - matrix ID, m, n,
-            8 byts, 8 bytes, 16, byt
-
- 32 - response -
-
-
-*/
-
-void Receive::receiveCommands()
-{
-    uint8_t buf[MAX_SERIALBUFFER_SIZE]; // find good size
+    uint8_t buf[MAX_SERIAL_BUFFER]; // find good size
     int16_t size = 0;
-    if (serial.readable())
-    {
-        size = serial.read(buf, MAX_SERIALBUFFER_SIZE);
-    }
 
-    if (size < 0)
-    {
-        size = 0;
-    }
 
-    for (size_t offset = 0; offset < (uint16_t)size; offset++)
-    {
-        bool packetedCompleted = parser.processByte(buf[offset]);
-
-    
-
-        if (packetedCompleted)
+   
+        if (serial.readable())
         {
-            if (parser.completedPacket.isValid())
+            size = serial.read(buf, MAX_SERIAL_BUFFER);
+        }
+
+        if (size < 0)
+        {
+            size = 0;
+        }
+
+        for (size_t offset = 0; offset < (uint16_t)size; offset++)
+        {
+            bool packetedCompleted = parser.processByte(buf[offset]);
+
+            if (packetedCompleted)
             {
+                if (parser.completedPacket.isValid())
 
-                RPCPacket inputPacket = parser.completedPacket; 
-
-                uint8_t * responseArgs; //(uint8_t*) inputPacket.headerChecksum; // does this work allocate before hand
-                uint16_t responseLength = 2;
-                RPCPacket responsePacket;
-
-                switch (inputPacket.procId)
                 {
-                case 1:
-                    float * data;
-                    data = (float*) malloc(2 *sizeof(float));
-                    Matrix * matrix = new Matrix(0, 0, 0, data);
+                    Packet packet = parser.completedPacket;
 
-                    uint8_t * responseArgs = ( uint8_t *) malloc(responseLength);
-                    //code for chekcsum response
-                    writeMatrix ( inputPacket.args[0], matrix);
-                    break;
-                case 2:
+                    Packet response = Packet();
+                    response.id = packet.payloadChecksum;
+                    uint8_t errorFlag = 1;
 
+                    float * value;
                     Matrix * matrix;
-                    readMatrix((uint16_t)inputPacket.args[0], matrix, responseArgs +2);
-                case 4:
-                    deleteMatrix((uint16_t)inputPacket.args[0]);
-                case 8:
-                    writeCell( (uint16_t) inputPacket.args[0], (uint16_t) inputPacket.args[2], (uint16_t) inputPacket.args[4], (float) inputPacket.args[6] );
-                case 16:
-                    responseLength = readCell( (uint16_t) inputPacket.args[0], (uint16_t) inputPacket.args[2], (uint16_t) inputPacket.args[4], responseArgs +2);
+
+                    switch (packet.id)
+                    {
+
+                    case WRITE_MATRIX:
+
+                        if(!writeMatrix(packet.payload)){
+                            errorFlag = 2;
+                        }
+                        break;
+
+                    case READ_MATRIX:
+
+                        if(!readMatrix(packet.payload, matrix)){
+                            errorFlag = 2;
+                        }
+
+                        
+                        break;
+                    case DELETE_MATRIX:
+                        if(!deleteMatrix(packet.payload)){
+                            errorFlag = 2;
+                        }
+                        break;
+
+                    case WRITE_CELL:
+                        if(!writeCell(packet.payload)){
+                            errorFlag = 2;
+                        }
+                        break;
+
+                    case READ_CELL:
+                        if(!readCell(packet.payload, value)){
+                            errorFlag = 2;
+                        }
+
+                        break;
+
+                    }
+
+                    if(packet.id == READ_MATRIX && errorFlag == 1){
+                        response.payloadLength = sizeof(errorFlag) + sizeof(Matrix::matrixID) +sizeof(Matrix::m) + sizeof(Matrix::n) + sizeof(matrix->data);
+                        response.payload = (uint8_t*) malloc(response.payloadLength);
+
+
+                        memcpy(response.payload + 1, &(matrix->matrixID), sizeof(matrix->matrixID));
+                        memcpy(response.payload + 3, &(matrix->m), sizeof(matrix->m));
+                        memcpy(response.payload + 5, &(matrix->n), sizeof(matrix->n));
+                        memcpy(response.payload + 7, matrix->data, sizeof(matrix->data));
+
+
+
+                    }else if (packet.id == READ_CELL&& errorFlag == 1){
+                        response.payloadLength = sizeof(errorFlag) + sizeof(float);
+                        response.payload = (uint8_t*) malloc(response.payloadLength);
+
+                        memcpy(response.payload + 1, value, sizeof(float));
+
+                    }else{
+                        response.payloadLength = sizeof(errorFlag);
+                        response.payload = (uint8_t*) malloc(response.payloadLength);
+
+                    }
+
+                    response.payload[0] = errorFlag;
+
+                    response.payloadChecksum = fletcher16(response.payload, response.payloadLength);
+                    response.headerChecksum = fletcher16(response.header, sizeof(Packet::header));
+
+                    sendResponse(&response);
                 }
-
-                responsePacket = RPCPacket(inputPacket.procId, responseLength, responseArgs);
-
-                sendResponse(responsePacket);
-
             }
         }
-    }
+    
 }
 
-void Receive::sendResponse(RPCPacket packet){
+void Server::sendResponse(Packet *packet)
+{
 
-    serial.write(packet.header, 8);
-    serial.write((uint8_t*) packet.headerChecksum, 2); // double check this works
-    serial.write((uint8_t*) packet.headerChecksum, 1);
-    serial.write(packet.args, packet.procArgsLength);
+    serial.write(packet->header, sizeof(Packet::header));
+    serial.write(&(packet->headerChecksum), sizeof(Packet::headerChecksum)); // double check this works
+    serial.write(packet->payload, packet->payloadLength);
+}
 
+bool Server::writeMatrix(uint8_t* data){
+
+    uint16_t matrixId;
+    memcpy(&matrixId, data + 1, sizeof(uint16_t));
+    uint16_t m;
+    memcpy(&m, data + 3, sizeof(uint16_t));
+    uint16_t n;
+    memcpy(&n, data, sizeof(uint16_t));
+
+    uint32_t matrixLength = m*n;
+
+    float* values = (float*)malloc(matrixLength * sizeof(float));
+   
+    memcpy(&values, data, sizeof(values));
+
+    // future error checking
+
+
+    if(data[0] == VOLATILE_MEMORY_FLAG){
+
+        matrices.emplace(matrixId, m, n, values);
+
+    } // add code for permanenet memory
+
+
+    return true;
 
 }
 
 
+bool Server::deleteMatrix(uint8_t* data){
 
-void Receive:: writeMatrix(bool memory, Matrix * matrix){
-    size_t size = 0;
+    uint16_t matrixId;
+    memcpy(&matrixId, data, sizeof(uint16_t));
 
-    if(!memory){
-        matrices.emplace(matrix);  // will this segfault
-    }else{
-        printf("No permament memory yet");
-    }
-
-};
-
-void Receive::deleteMatrix(uint16_t matrixID){
-    matrices.erase(Matrix(matrixID, 0, 0, nullptr)); // check this shit cause chat wrote it
-
+    return matrices.erase(Matrix(matrixId, 0, 0, nullptr));
 }
 
 
+bool Server::writeCell(uint8_t* data){
 
-void Receive::writeCell(uint16_t matrixID, uint16_t m, uint16_t n, float value){
+    uint16_t matrixId;
+    memcpy(&matrixId, data, sizeof(uint16_t));
+    uint16_t m;
+    memcpy(&m, data + 2, sizeof(uint16_t));
+    uint16_t n;
+    memcpy(&n, data +4, sizeof(uint16_t));
+    float value;
+    memcpy(&value, data +6, sizeof(float));
 
-    //look through permanent memory - not implemented 
 
-    auto it = matrices.find(Matrix(matrixID,0,0, nullptr));  // Find the element with matching id
+    auto it = matrices.find(Matrix(matrixId,0,0, nullptr));  // Find the element with matching id
 
     if (it != matrices.end()) {
         Matrix matrix = *it;
@@ -148,56 +195,48 @@ void Receive::writeCell(uint16_t matrixID, uint16_t m, uint16_t n, float value){
         matrices.emplace(matrix);
 
     
+    }else{
+        return false;
     }
-    // error handling if bounds are off
+
+}
 
 
-}    // diff for if permanement or not -- does it need memory or not
+bool Server::readCell(uint8_t* data, float * value){
 
-uint16_t Receive::readCell(uint16_t matrixID, uint16_t m, uint16_t n, uint8_t * args){
+    uint16_t matrixId;
+    memcpy(&matrixId, data, sizeof(uint16_t));
+    uint16_t m;
+    memcpy(&m, data + 2, sizeof(uint16_t));
+    uint16_t n;
+    memcpy(&n, data +4, sizeof(uint16_t));
 
-    auto it = matrices.find(Matrix(matrixID,0,0, nullptr));  // Find the element with matching id
+    auto it = matrices.find(Matrix(matrixId,0,0, nullptr));  // Find the element with matching id
 
     if (it != matrices.end()) {
-        float value = it->readCell(m, n);  
-        args[0] = value; // figure out how to set that
-
-        // add confirm flag
-
-        return sizeof(float);
+        value = it->readCell(m, n);
+        return true;
     }else{
-        args[0] = 53; // not found FLag
-        return 3; //size of flag
+        // code for searching through permanent memory
+        return false;
     }
 
-     //
+}
 
 
-};
+bool Server::readMatrix(uint8_t* data, const Matrix  * matrix){
+
+    uint16_t matrixId;
 
 
-
-uint16_t Receive::readMatrix(uint16_t matrixID, Matrix * matrix, uint8_t * args){
-
-
-    auto it = matrices.find(Matrix(matrixID,0,0, nullptr));  // Find the element with matching id
-
-    float value;
+    auto it = matrices.find(Matrix(matrixId,0,0, nullptr));  // Find the element with matching id
 
     if (it != matrices.end()) {
-        args = (uint8_t*) it; // figure conversion out
-
+        matrix = &(*it);
+        return true;
     }else{
-        // look trhough permanent memory
-        args[0] = 53; // not found FLag
-        return 3; //size of flag
+        // code for searching through permanent memory
+        return false;
     }
-
-    args[0] = value; // figure out how to set that
-
-    return sizeof(float);
-
-
-
 
 }

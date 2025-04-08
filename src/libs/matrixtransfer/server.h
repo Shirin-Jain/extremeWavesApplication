@@ -3,28 +3,30 @@
 #include <unordered_set>
 
 
-struct Receive{
+struct Server{
 
-    Receive();
+    Server();
     void init();
+
+
+    std::unordered_set<Matrix, MatrixHash> matrices;
+
     
+    void waitForCommands();
+    void sendResponse(Packet *packet);
 
 
-    void receiveCommands();
-    void sendResponse(RPCPacket packet);
 
-    void writeMatrix(bool memory, Matrix * matrix );
-    void writeCell(uint16_t matrixID, uint16_t m, uint16_t n, float value);    // diff for if permanement or not -- does it need memory or not
-    uint16_t readMatrix(uint16_t matrixID, Matrix * matrix, uint8_t * args);
-    uint16_t readCell(uint16_t matrixID, uint16_t m, uint16_t n, uint8_t * args);
-    void deleteMatrix(uint16_t matrixID);
+    bool writeMatrix(uint8_t* data );
+    bool writeCell(uint8_t* data );    // diff for if permanement or not -- does it need memory or not
+    bool readMatrix(uint8_t* data, const Matrix * matrix );
+    bool readCell(uint8_t* data,  float * value);
+    bool deleteMatrix(uint8_t* data );
 
 
 
     Parser parser;
     BufferedSerial serial;
-    std::unordered_set<Matrix, MatrixHash> matrices;
-
     // could need a variable for permanent memory management;
     // need a data structure to store matrixes
 

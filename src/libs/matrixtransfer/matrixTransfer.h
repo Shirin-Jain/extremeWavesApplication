@@ -9,12 +9,20 @@
 #define HEADER_CHECKSUM 2
 #define PAYLOAD 3
 
-#define WRITE_MATRIX 1
-#define READ_MATRIX 2
-#define DELETE_MATRIX 4
-#define WRITE_CELL 8
-#define READ_CELL 16
+#define WRITE_MATRIX 1  // mem flag, matrix struct
+#define READ_MATRIX 2 // matrix id
+#define DELETE_MATRIX 4 // matrix id
+#define WRITE_CELL 8 // matrix id, m, n, value
+#define READ_CELL 16 // matrix id, m, n,
 
+#define PEMRANENT_MEMORY_FLAG 1
+#define VOLATILE_MEMORY_FLAG 2
+
+#define SUCCESS_FLAG 1
+#define FAIL_FLAG 2
+
+#define MAX_SERIAL_BUFFER 1024
+#define BAUD_RATE 115200
 
 uint16_t fletcher16(const uint8_t* data, uint64_t length);
 
@@ -38,15 +46,13 @@ struct Matrix {
 
     };
 
-    float readCell (uint16_t _m, uint16_t _n) const{
-
-        float value;
+    float * readCell (uint16_t _m, uint16_t _n) const{
 
         if(_m < m && _n < n){
-            value = data[ _m *(n-1) + _n];
+            return data + (_m *(n-1) + _n);
         }
 
-        return value;
+        return nullptr;
 
     };
 
