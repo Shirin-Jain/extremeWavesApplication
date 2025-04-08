@@ -24,38 +24,9 @@ uint16_t fletcher16(const uint8_t* data, uint64_t length){
 }
 
 
-uint32_t copyMatrix(uint8_t* destination, Matrix* matrix){ // could be done during send command
-    destination[0] = matrix -> matrixID;
-    destination[1] = matrix -> m;
-    destination[2] = matrix -> n;
-
-    uint32_t matrixSize = matrix->m * matrix->n;
-    memcpy(destination, matrix->data, matrixSize *4); // caust its a float
-
-
-    return matrixSize + 6; // size of whole thing
-}
-
-
-
-
-Packet::Packet(uint16_t _id, uint32_t _payloadLength, uint8_t* _payload){
-    id = _id;
-
-    payloadLength = _payloadLength;
-    payloadChecksum = fletcher16(_payload, _payloadLength);
-
-    headerChecksum = fletcher16(header, 11);
-    payload = _payload;    
-}
-
-
 bool Packet::isValid(){
     return (fletcher16(header, sizeof(header)) == headerChecksum)  && (fletcher16(payload, payloadLength) == payloadChecksum);
 }
-
-
-
 
 Parser::Parser(){
     init();
@@ -68,7 +39,6 @@ void Parser::init(){
     inputPacket = Packet();
     position = 0;
 }
-
 
 bool Parser::processByte(uint8_t byte){
     if(state == SEARCHING_FOR_SOH){
@@ -105,6 +75,7 @@ bool Parser::processByte(uint8_t byte){
                 }
 
                 state = PAYLOAD;
+                inputPacket.payload = (uint8_t*)malloc(inputPacket.payloadLength);
                 position = 0;
             }
             else {
@@ -123,7 +94,6 @@ bool Parser::processByte(uint8_t byte){
             return true;
         }
 
-        
     }
     return false;
 }

@@ -1,6 +1,6 @@
- #include "matrixTransfer.h"
-#include "mbed.h"
- 
+#include "matrixTransfer.h"
+#include "serialib.h"
+#include <string>
  
  
  // send command
@@ -11,7 +11,7 @@
 
  struct Client{
 
-    Client();
+    Client(std::string port, uint32_t baud);
     void init();
 
     
@@ -28,6 +28,6 @@
 
     // main is just ask for command then wait repsonse;
 
-    BufferedSerial serial;
+    serialib serial;
     Parser parser;
  };

@@ -1,5 +1,4 @@
-add_library(matrixtransfer matrixtransfer.cpp matrixtransfer.h server.cpp server.h client.cpp client.h)
-target_link_libraries(matrixtransfer)
+add_library(matrixtransfer matrixtransfer.cpp matrixtransfer.h)
 
 target_include_directories(matrixtransfer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(matrixtransfer PRIVATE -Wno-unknown-pragmas)
