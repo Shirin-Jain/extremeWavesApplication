@@ -87,13 +87,14 @@ void Server::waitForCommands()
                     }
 
                     if(packet.id == READ_MATRIX && errorFlag == 1){
-                        response.payloadLength = sizeof(errorFlag) + sizeof(Matrix::matrixID) +sizeof(Matrix::m) + sizeof(Matrix::n) + sizeof(matrix->data);
+                        size_t matrixDataLength = matrix->m*matrix->n*sizeof(decltype(*matrix->data));
+                        response.payloadLength = sizeof(errorFlag) + sizeof(Matrix::matrixID) +sizeof(Matrix::m) + sizeof(Matrix::n) + matrixDataLength;
                         response.payload = (uint8_t*) malloc(response.payloadLength);
 
                         memcpy(response.payload + 1, &(matrix->matrixID), sizeof(matrix->matrixID));
                         memcpy(response.payload + 3, &(matrix->m), sizeof(matrix->m));
                         memcpy(response.payload + 4, &(matrix->n), sizeof(matrix->n));
-                        memcpy(response.payload + 5, matrix->data, matrix->m*matrix->n*sizeof(decltype(*matrix->data)));
+                        memcpy(response.payload + 5, matrix->data, matrixDataLength);
                     }
                     else if (packet.id == READ_CELL&& errorFlag == 1){
                         response.payloadLength = sizeof(errorFlag) + sizeof(float);
@@ -127,22 +128,24 @@ void Server::sendResponse(Packet *packet)
 }
 
 bool Server::writeMatrix(uint8_t* data){
+    uint8_t memFlag = data[0];
     uint16_t matrixId;
-    memcpy(&matrixId, data + 1, sizeof(Matrix::matrixID));
+    memcpy(&matrixId, data += sizeof(memFlag), sizeof(Matrix::matrixID));
     uint8_t m;
-    memcpy(&m, data + 3, sizeof(Matrix::m));
+    memcpy(&m, data += sizeof(Matrix::matrixID), sizeof(Matrix::m));
     uint8_t n;
-    memcpy(&n, data + 4, sizeof(Matrix::n));
+    memcpy(&n, data += sizeof(Matrix::m), sizeof(Matrix::n));
 
-    uint32_t matrixLength = m*n;
+    uint32_t matrixElements = m*n;
+    uint32_t matrixMemorySize = matrixElements * sizeof(float);
 
-    float* values = (float*)malloc(matrixLength * sizeof(float));
+    float* values = (float*)malloc(matrixMemorySize);
    
-    memcpy(&values, data, sizeof(values));
+    memcpy(values, data+=sizeof(Matrix::n), matrixMemorySize);
 
     // future error checking
 
-    if(data[0] == VOLATILE_MEMORY_FLAG){
+    if(memFlag == VOLATILE_MEMORY_FLAG){
         matrices[matrixId] = new Matrix {matrixId, m, n, values};
     } // add code for permanenet memory
 
@@ -164,11 +167,11 @@ bool Server::writeCell(uint8_t* data){
     uint16_t matrixId;
     memcpy(&matrixId, data, sizeof(Matrix::matrixID));
     uint8_t m;
-    memcpy(&m, data + 2, sizeof(Matrix::m));
+    memcpy(&m, data += sizeof(Matrix::matrixID), sizeof(Matrix::m));
     uint8_t n;
-    memcpy(&n, data + 3, sizeof(Matrix::n));
+    memcpy(&n, data += sizeof(Matrix::m), sizeof(Matrix::n));
     float value;
-    memcpy(&value, data +6, sizeof(float));
+    memcpy(&value, data += sizeof(Matrix::n), sizeof(float));
 
     if (matrices.find(matrixId) != matrices.end()) {
         matrices[matrixId]->writeCell(m, n, value);  
@@ -186,9 +189,9 @@ bool Server::readCell(uint8_t* data, float & value){
     uint16_t matrixId;
     memcpy(&matrixId, data, sizeof(Matrix::matrixID));
     uint8_t m;
-    memcpy(&m, data + 2, sizeof(Matrix::m));
+    memcpy(&m, data += sizeof(Matrix::matrixID), sizeof(Matrix::m));
     uint8_t n;
-    memcpy(&n, data + 3, sizeof(Matrix::n));
+    memcpy(&n, data += sizeof(Matrix::m), sizeof(Matrix::n));
 
     if (matrices.find(matrixId) != matrices.end()) {
         value = *(matrices[matrixId]->readCell(m, n));

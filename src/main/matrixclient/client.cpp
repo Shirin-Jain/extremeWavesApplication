@@ -10,8 +10,6 @@ Client::Client(std::string port, uint32_t baud)
     if (status != 1) {
         printf("Serial error: %d\n", status);
     }
-    serial.DTR(true);
-    serial.RTS(false);
     init();
 }
 
@@ -148,10 +146,16 @@ void Client::sendResponse(Packet* packet){
 
     //test byprinting this shit out
     //also not response
+    commandChecksum = packet->payloadChecksum;
+
     size_t meta_size = sizeof(Packet::header) + sizeof(Packet::headerChecksum);
     
-    for (int b = 0; b < meta_size; b++) {
-        printf("%X ", ((uint8_t*)(packet))[b]);
+    for (int b = 0; b < sizeof(Packet::header); b++) {
+        printf("%X ", ((uint8_t*)(packet->header))[b]);
+    }
+    printf("\n");
+    for (int b = 0; b < sizeof(Packet::headerChecksum); b++) {
+        printf("%X ", ((uint8_t*)(&packet->headerChecksum))[b]);
     }
     printf("\n");
     for (int b = 0; b < packet->payloadLength; b++) {
@@ -161,7 +165,7 @@ void Client::sendResponse(Packet* packet){
     
     int a = serial.writeBytes(packet->header, sizeof(Packet::header));
     int b = serial.writeBytes(&(packet->headerChecksum), sizeof(Packet::headerChecksum));
-    int c = serial.writeBytes(packet->header, packet->payloadLength);
+    int c = serial.writeBytes(packet->payload, packet->payloadLength);
 
     printf("WS: %d %d %d\n", a,b,c);
 }
@@ -169,7 +173,7 @@ void Client::sendResponse(Packet* packet){
 void Client::waitResponse()
 {
 
-    uint8_t buf[MAX_SERIAL_BUFFER]; // find good size
+    uint8_t b; // find good size
     int16_t size = 0;
 
     bool responseFound = false;
@@ -178,48 +182,42 @@ void Client::waitResponse()
     printf("Waiting for response ...\n");
 
     while(!responseFound) { // add time out too
-
-
-        if (serial.available())
-        {
-            size = serial.readBytes(buf, MAX_SERIAL_BUFFER);
-        }
+        size = serial.readChar((char*)&b);
 
         if (size < 0)
         {
+            printf("No bytes\n");
             size = 0;
         }
 
-        for (size_t offset = 0; offset < (uint16_t)size; offset++)
+        printf("%X ", b);
+
+        bool packetedCompleted = parser.processByte(b);
+
+        if (packetedCompleted)
         {
-            printf("%X ", buf[offset]);
-
-            bool packetedCompleted = parser.processByte(buf[offset]);
-
-            if (packetedCompleted)
+            printf("PACKET COMPLETED\n");
+            if (parser.completedPacket.isValid())
             {
-                if (parser.completedPacket.isValid())
-                {
-                    if(parser.completedPacket.payloadChecksum == commandChecksum){
-                        responsePacket = parser.completedPacket;
-                        responseFound == true;
-                        break;
-                    }       
-                }
+                printf("PACKET VALID\n");
+                if(parser.completedPacket.id == commandChecksum){
+                    printf("COMMAND CHECKSUM\n");
+                    responsePacket = parser.completedPacket;
+                    responseFound = true;
+                }       
             }
         }
     }
 
     if(responsePacket.payload[0] == SUCCESS_FLAG){
-        printf("Success \n");
+        printf("Success\n");
 
         if(commandId == READ_CELL){
             float value;
             memcpy(&value, responsePacket.payload +1, sizeof(float));
     
-            printf("Cell : %f", value);
+            printf("Cell: %f\n", value);
         }
-    
     
         if(commandId == READ_MATRIX){ // repsose format - error flag( 1byte), 2 byte mID, 2 byte m, 2 byte n, etc
             
@@ -232,18 +230,17 @@ void Client::waitResponse()
     
             uint32_t index = 0;
     
-            printf("Matrix [%d]: ", matrixId);
+            printf("Matrix [%d]:\n", matrixId);
     
             for(int i = 0; i < m; i++){
     
                 for(int j = 0; j < n; j ++){
     
-                    printf("%f ", *reinterpret_cast<float*>(responsePacket.payload + 5 + index));
+                    printf("%f ", (reinterpret_cast<float*>(responsePacket.payload + 5))[index]);
                     index++;
     
                 }
-    
-                printf("/n");
+                printf("\n");
             }
 
         }
