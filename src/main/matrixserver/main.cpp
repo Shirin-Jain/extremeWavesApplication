@@ -6,17 +6,11 @@ int main()
 {
 	Server server = Server(CONSOLE_TX, CONSOLE_RX, MT_BAUD_RATE);
 
-	while(true) 
+	while (true)
 	{
 
 		server.waitForCommands();
-
 	}
 
 	return 0;
 }
-
-
-
-
-

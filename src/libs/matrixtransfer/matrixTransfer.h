@@ -5,8 +5,8 @@
 
 #pragma once
 
-#define SOH                             0x4E4C444D
-#define MAX_MATRIX_DIMENSION            127
+#define SOH 0x4E4C444D
+#define MAX_MATRIX_DIMENSION 127
 
 #define SEARCHING_FOR_SOH 0
 #define HEADER 1
@@ -14,10 +14,10 @@
 #define PAYLOAD 3
 
 #define WRITE_MATRIX 1  // mem flag, matrix struct
-#define READ_MATRIX 2 // matrix id
+#define READ_MATRIX 2   // matrix id
 #define DELETE_MATRIX 4 // matrix id
-#define WRITE_CELL 8 // matrix id, m, n, value
-#define READ_CELL 16 // matrix id, m, n,
+#define WRITE_CELL 8    // matrix id, m, n, value
+#define READ_CELL 16    // matrix id, m, n,
 
 #define VOLATILE_MEMORY_FLAG 1
 #define PEMRANENT_MEMORY_FLAG 2
@@ -27,7 +27,6 @@
 
 #define MAX_SERIAL_BUFFER 1024
 #define MT_BAUD_RATE 115200
-
 
 /*
 RPC:
@@ -45,7 +44,6 @@ float - 4bytes
 
 */
 
-
 /*
 RESPONSE:
 
@@ -59,72 +57,86 @@ successFlag, 1byte
 
 */
 
-uint16_t fletcher16(const uint8_t* data, uint64_t length);
-
+uint16_t fletcher16(const uint8_t *data, uint64_t length);
 
 #pragma pack(push, 1)
-struct Matrix {
+struct Matrix
+{
     uint16_t matrixID;
     uint8_t m;
     uint8_t n;
-    float* data;
+    float *data;
 
-    Matrix(uint16_t _matrixID, uint16_t _m, uint16_t _n, float * _data){
+    Matrix(uint16_t _matrixID, uint16_t _m, uint16_t _n, float *_data = nullptr)
+    {
         matrixID = _matrixID;
         m = _m;
         n = _n;
         data = _data;
-
     };
 
-    float * readCell (uint16_t _m, uint16_t _n) const{
+    float *readCell(uint16_t _m, uint16_t _n) const
+    {
         assert(_m < m && _n < n);
 
-        return data + (_m *(n) + _n);
+        return data + (_m * (n) + _n);
     };
 
-
-    void writeCell(uint16_t _m, uint16_t _n, float value){
+    void writeCell(uint16_t _m, uint16_t _n, float value)
+    {
         assert(_m < m && _n < n);
 
-        data[ _m *(n) + _n] = value;  // double chek this
+        data[_m * (n) + _n] = value;
     };
 
-
-    bool operator==(const Matrix& other) const {
+    bool operator==(const Matrix &other) const
+    {
         return matrixID == other.matrixID;
     }
-    
+
+    ~Matrix()
+    {
+        if (data != nullptr)
+        {
+            free(data);
+        }
+    }
 };
 
-
-struct MatrixHash {
-    std::size_t operator()(const Matrix& m) const {
-        return std::hash<int>{}(m.matrixID);  
+struct MatrixHash
+{
+    std::size_t operator()(const Matrix &m) const
+    {
+        return std::hash<int>{}(m.matrixID);
     }
 };
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-struct Packet{
-    
-    union {
-        struct {
+struct Packet
+{
+
+    union
+    {
+        struct
+        {
             uint32_t startOfHeader = SOH;
             uint16_t payloadLength;
             uint16_t payloadChecksum;
-            uint16_t id;      // either rpc or rpc checksum  
+            uint16_t id; // either rpc or rpc checksum
         };
 
-        struct {
+        struct
+        {
             uint8_t header[10];
         };
     };
 
     uint16_t headerChecksum;
-    uint8_t* payload; // byte array 
+    uint8_t *payload;
 
-    Packet(){
+    Packet()
+    {
         startOfHeader = SOH;
         payloadLength = 0;
         payloadChecksum = 0;
@@ -136,19 +148,15 @@ struct Packet{
 };
 #pragma pack(pop)
 
-
-struct Parser {
+struct Parser
+{
     Parser();
     void init();
     bool processByte(uint8_t);
 
-    int state;  
+    int state;
     uint32_t soh;
     Packet inputPacket;
     Packet completedPacket;
     size_t position;
 };
-
-
-
-

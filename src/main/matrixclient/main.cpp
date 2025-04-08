@@ -14,23 +14,14 @@ int main()
 
 	Client client = Client(port, MT_BAUD_RATE);
 
-	while(true) 
+	while (true)
 	{
 
-		if(client.askForCommand()){
+		if (client.askForCommand())
+		{
 			client.waitResponse();
 		}
-
 	}
 
 	return 0;
 }
-
-
-
-
-
-
-
-
-

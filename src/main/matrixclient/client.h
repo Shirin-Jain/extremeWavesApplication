@@ -22,7 +22,7 @@
 
     bool askForCommand(); // ask for command and send response
 
-    void sendResponse(Packet *packet);
+    void sendRPC(Packet *packet);
 
     void waitResponse(); // wait for response and print it, if time out say timed out;
 
